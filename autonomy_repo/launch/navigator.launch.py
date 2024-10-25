@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from aa274_sections.autonomy_repo.scripts.launch import LaunchDescription
+from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
