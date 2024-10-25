@@ -161,13 +161,13 @@ class Navigator(BaseNavigator):
 
         dt = t - self.t_prev
 
-        x_d = splev(t, plan.spline_x)
-        xd_d = splev(t, plan.spline_x, der=1)
-        xdd_d = splev(t, plan.spline_x, der=2)
+        x_d = splev(t, plan.path_x_spline)
+        xd_d = splev(t, plan.path_x_spline, der=1)
+        xdd_d = splev(t, plan.path_x_spline, der=2)
 
-        y_d = splev(t, plan.spline_y)
-        yd_d = splev(t, plan.spline_y, der=1)
-        ydd_d = splev(t, plan.spline_y, der=2)
+        y_d = splev(t, plan.path_y_spline)
+        yd_d = splev(t, plan.path_y_spline, der=1)
+        ydd_d = splev(t, plan.path_y_spline, der=2)
 
         x_dot = self.V_prev * np.cos(th)
         y_dot = self.V_prev * np.sin(th)
@@ -187,7 +187,7 @@ class Navigator(BaseNavigator):
         self.om_prev = om
 
         control = TurtleBotControl()
-        control.V = V
+        control.v = V
         control.omega = om
 
         return control
