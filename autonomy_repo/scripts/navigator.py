@@ -11,14 +11,13 @@ from scipy.interpolate import splrep, splev
 import numpy as np
 
 class AStar:
-    def __init__(self, statespace_lo, statespace_hi, x_init, x_goal, occupancy, resolution = 1):
-        self.statespace_lo = statespace_lo
-        self.statespace_hi = statespace_hi
+    def __init__(self, start, end, occupancy, resolution=1, horizon=1):
         self.occupancy = occupancy
         self.resolution = resolution
-        self.x_offset = x_init
-        self.x_init = self.snap_to_grid(x_init)
-        self.x_goal = self.snap_to_grid(x_goal)
+        self.x_offset = start
+        self.start = self.snap_to_grid(start)
+        self.end = self.snap_to_grid(end)
+        self.horizon = horizon
 
         self.closed_set = set()
         self.open_set = set()
@@ -27,9 +26,9 @@ class AStar:
         self.cost_to_arrive = {}
         self.came_from = {}
 
-        self.open_set.add(self.x_init)
-        self.cost_to_arrive[self.x_init] = 0
-        self.est_cost_through[self.x_init] = self.distance(self.x_init, self.x_goal)
+        self.open_set.add(self.start)
+        self.cost_to_arrive[self.start] = 0
+        self.est_cost_through[self.start] = self.distance(self.start, self.end)
 
         self.path = None
 
@@ -61,7 +60,7 @@ class AStar:
         return neighbors
 
     def find_best_est_cost_through(self):
-        return min(self.open_set, key = lambda x: self.est_cost_through[x])
+        return min(self.open_set, key=lambda x: self.est_cost_through[x])
 
     def reconstruct_path(self):
         path = [self.x_goal]
@@ -74,12 +73,15 @@ class AStar:
     def solve(self):
         while self.open_set:
             cur = self.find_best_est_cost_through()
-            if cur == self.x_goal:
+            if cur == self.end:
                 self.path = self.reconstruct_path()
                 return True
 
             self.open_set.remove(cur)
             self.closed_set.add(cur)
+
+            if self.distance(self.start, cur) > self.horizon:
+                return False
 
             for n in self.get_neighbors(cur):
                 if n in self.closed_set:
@@ -93,12 +95,12 @@ class AStar:
 
                 self.came_from[n] = cur
                 self.cost_to_arrive[n] = tcta
-                self.est_cost_through[n] = tcta + self.distance(n, self.x_goal)
+                self.est_cost_through[n] = tcta + self.distance(n, self.end)
         
         return False
 
 class Navigator(BaseNavigator):
-    def __init__(self, kp: float, kpx: float, kdx: float, kpy: float, kdy: float, V_max: float, om_max: float):
+    def __init__(self, kp: float, kpx: float, kdx: float, kpy: float, kdy: float, V_max: float):
         super().__init__("navigator")
         self.kp = kp
 
@@ -109,7 +111,6 @@ class Navigator(BaseNavigator):
         self.kdy = kdy
 
         self.V_max = V_max
-        self.om_max = om_max
 
         self.V_prev = 0.0
         self.t_prev = 0.0
@@ -120,18 +121,13 @@ class Navigator(BaseNavigator):
         self.occupancy = None
         self.astar = None
 
-    def compute_trajectory_plan(self, x_init, x_goal, occupancy):
-        self.x_init = x_init
-        self.x_goal = x_goal
-        self.occupancy = occupancy
-        
+    def compute_trajectory_plan(self, start, end, occ, res, hor):
         self.astar = AStar(
-            statespace_lo = (0, 0), 
-            statespace_hi = (occupancy.width, occupancy.height), 
-            x_init = self.x_init, 
-            x_goal = self.x_goal, 
-            occupancy = self.occupancy, 
-            resolution = 0.1
+            start=start, 
+            end=end, 
+            occupancy=occ, 
+            resolution=res,
+            horizon=hor
         )
 
         if not self.astar.solve():
@@ -142,21 +138,21 @@ class Navigator(BaseNavigator):
             astar_path = np.asarray(self.astar.path)
             return self.compute_smooth_plan(astar_path)
 
-    def compute_smooth_plan(self, path, v_desired = 0.15, spline_alpha = 0.05):
+    def compute_smooth_plan(self, path, v_desired=0.15, spline_alpha=0.05):
         path = np.asarray(path)
 
         dist = np.sqrt(np.diff(path[:, 0]) ** 2 + np.diff(path[:, 1]) ** 2)
         ts = np.zeros(len(path))
         ts[1:] = np.cumsum(dist / v_desired)
 
-        path_x_spline = splrep(ts, path[:, 0], s = spline_alpha)
-        path_y_spline = splrep(ts, path[:, 1], s = spline_alpha)
+        path_x_spline = splrep(ts, path[:, 0], s=spline_alpha)
+        path_y_spline = splrep(ts, path[:, 1], s=spline_alpha)
 
         return TrajectoryPlan(
-            path = path,
-            path_x_spline = path_x_spline,
-            path_y_spline = path_y_spline,
-            duration = ts[-1],
+            path=path,
+            path_x_spline=path_x_spline,
+            path_y_spline=path_y_spline,
+            duration=ts[-1],
         )
 
     def compute_heading_control(self, current_state: TurtleBotState, desired_state: TurtleBotState) -> TurtleBotControl:
@@ -173,12 +169,12 @@ class Navigator(BaseNavigator):
     
     def get_desired_state(self, t: float, plan):
         x_d = splev(t, plan.spline_x)
-        xd_d = splev(t, plan.spline_x, der = 1)
-        xdd_d = splev(t, plan.spline_x, der = 2)
+        xd_d = splev(t, plan.spline_x, der=1)
+        xdd_d = splev(t, plan.spline_x, der=2)
 
         y_d = splev(t, plan.spline_y)
-        yd_d = splev(t, plan.spline_y, der = 1)
-        ydd_d = splev(t, plan.spline_y, der = 2)
+        yd_d = splev(t, plan.spline_y, der=1)
+        ydd_d = splev(t, plan.spline_y, der=2)
 
         return x_d, xd_d, xdd_d, y_d, yd_d, ydd_d
 
@@ -210,9 +206,9 @@ class Navigator(BaseNavigator):
 
         return control_msg
 
-def main(args = None):
-    rclpy.init(args = args)
-    node = Navigator(kp = 1.0, kpx = 1.0, kdx = 0.1, kpy = 1.0, kdy = 0.1, V_max = 0.5, om_max = 1.0)
+def main(args=None):
+    rclpy.init(args=args)
+    node = Navigator(kp=1.0, kpx=1.0, kdx=0.1, kpy=1.0, kdy=0.1, V_max=0.5)
 
     rclpy.spin(node)
     node.destroy_node()
@@ -220,4 +216,3 @@ def main(args = None):
 
 if __name__ == "__main__":
     main()
-
