@@ -3,16 +3,9 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
-from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 import numpy as np
 from scipy.signal import convolve2d
-
-from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import OccupancyGrid
-from scipy.signal import convolve2d
-from std_msgs.msg import Bool
 
 from asl_tb3_msgs.msg import TurtleBotState
 from asl_tb3_lib.grids import StochOccupancyGrid2D
