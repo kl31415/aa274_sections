@@ -16,6 +16,7 @@ install(PROGRAMS
     scripts/perception_controller.py
     scripts/keyboard_teleop.py
     scripts/icp_node.py
+    scripts/frontier_exploration.py
     DESTINATION lib/${PROJECT_NAME}
 )
 
