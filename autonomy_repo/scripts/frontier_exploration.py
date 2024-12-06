@@ -32,12 +32,15 @@ class FrontierExplorationController(Node):
                 self.get_logger().info("Stop sign detected.")
                 self.active = False
                 self.detector_start_time = self.get_clock().now().nanoseconds / 1e9
-        else:
+        else: 
             if self.detector_start_time:
-                if self.get_clock().now().nanoseconds / 1e9 - self.detector_start_time >= 5: 
-                    self.get_logger().info("Continuing exploration.")
+                if (self.get_clock().now().nanoseconds / 1e9 - self.detector_start_time) >= 5: 
+                    self.get_logger().info("Resuming exploration.")
                     self.active = True
                     self.detector_start_time = None
+                    # Set new goal pose
+                    if self.occupancy and self.state:
+                        self.explore(self.occupancy)
 
     def map_callback(self, msg):
         self.occupancy = StochOccupancyGrid2D(
@@ -64,7 +67,7 @@ class FrontierExplorationController(Node):
 
     def explore(self, occupancy):
         if not self.active:
-            self.cmd_nav_pub.publish(TurtleBotState(x = self.state.x, y = self.state.y))
+            self.get_logger().info("Paused (stop sign)")
             return
             
         window_size = 13
