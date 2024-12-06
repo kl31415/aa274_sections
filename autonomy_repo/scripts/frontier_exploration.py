@@ -27,18 +27,23 @@ class FrontierExplorationController(Node):
         self.detector_start_time = None
     
     def stopsign_callback(self, msg: Bool) -> None:
+        cur_time = self.get_clock().now().nanoseconds / 1e9
         if msg.data:
             if self.active:
-                self.get_logger().info("Stop sign detected.")
+                self.get_logger().info("Stop sign detected. Stopping.")
                 self.active = False
-                self.detector_start_time = self.get_clock().now().nanoseconds / 1e9
-        else: 
-            if self.detector_start_time:
-                if (self.get_clock().now().nanoseconds / 1e9 - self.detector_start_time) >= 5: 
-                    self.get_logger().info("Resuming exploration.")
+                self.detector_start_time = cur_time
+                if self.state:
+                    stop_cmd = TurtleBotState()
+                    stop_cmd.x = self.state.x
+                    stop_cmd.y = self.state.y
+                    self.cmd_nav_pub.publish(stop_cmd)
+        else:
+            if self.detector_start_time is not None:
+                if (cur_time - self.detector_start_time) >= 5.0:
+                    self.get_logger().info("Stop sign duration elapsed. Continuing.")
                     self.active = True
                     self.detector_start_time = None
-                    # Set new goal pose
                     if self.occupancy and self.state:
                         self.explore(self.occupancy)
 
